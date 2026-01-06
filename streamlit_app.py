@@ -3,7 +3,7 @@ from groq import Groq
 from pypdf import PdfReader
 from fpdf import FPDF
 
-# 1. Professional UI Setup
+# 1. Professional UI Setup with the NEW Title
 st.set_page_config(page_title="CENT-S Engine", layout="centered", initial_sidebar_state="collapsed")
 st.markdown("""
     <style>
@@ -14,7 +14,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏛️ Official CENT-S Scientific Exam")
+# THE CHANGE: Renamed from "Official CENT-S Scientific Exam" to "CENT-S Engine"
+st.title("🏛️ CENT-S Engine")
 
 # 2. Secure API Connection
 try:
@@ -23,7 +24,7 @@ except KeyError:
     st.error("Missing GROQ_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# PERSISTENCE: Keep data alive across reruns
+# PERSISTENCE: Lock data into session state to avoid crashes
 if "exam_text" not in st.session_state:
     st.session_state.exam_text = None
 if "pdf_bytes" not in st.session_state:
@@ -37,8 +38,7 @@ if uploaded_file:
     context_text = "".join([page.extract_text() for page in reader.pages[:10]])
 
     if st.button("Generate Full 55-Question Exam"):
-        with st.spinner("Engineering 55 scientific questions... This may take a minute."):
-            # Re-emphasized counts to prevent the AI from stopping at 45
+        with st.spinner("Engineering 55 scientific questions..."):
             prompt = f"""
             Act as a CISIA Exam Designer. Create a full CENT-S Scientific Exam.
             YOU MUST PROVIDE EXACTLY 55 QUESTIONS TOTAL. 
@@ -52,7 +52,7 @@ if uploaded_file:
             
             STRICT RULES:
             1. Exactly 4 options (a, b, c, d) per question.
-            2. RANDOMIZE the correct answer (ensure a balanced spread of a, b, c, and d).
+            2. RANDOMIZE the correct answer (ensure a balanced spread).
             3. Provide an Answer Key at the very end.
             
             Reference: {context_text[:3000]}
@@ -64,11 +64,11 @@ if uploaded_file:
             )
             st.session_state.exam_text = response.choices[0].message.content
             
-            # --- PDF Generation with Byte Conversion ---
+            # --- PDF Generation (Hardened for bytes) ---
             pdf = FPDF()
             pdf.add_page()
             try:
-                # Using the font file in your repo
+                # Using the font file in your repo (DejaVuSans.ttf)
                 pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
                 pdf.set_font("DejaVu", size=10)
             except:
@@ -76,7 +76,7 @@ if uploaded_file:
             
             pdf.multi_cell(0, 10, txt=st.session_state.exam_text)
             
-            # FIX: Convert bytearray to bytes for Streamlit
+            # Convert to bytes to satisfy Streamlit requirements
             st.session_state.pdf_bytes = bytes(pdf.output())
 
     # 4. Results & Download
@@ -85,8 +85,8 @@ if uploaded_file:
         st.markdown(st.session_state.exam_text)
 
         st.download_button(
-            label="📥 Download Official 55-Question PDF",
+            label="📥 Download Final Exam PDF",
             data=st.session_state.pdf_bytes,
-            file_name="CENT-S_Full_Exam.pdf",
+            file_name="CENTS_Engine_Exam.pdf",
             mime="application/pdf"
         )
