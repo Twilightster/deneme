@@ -3,7 +3,6 @@ from groq import Groq
 from pypdf import PdfReader
 from fpdf import FPDF
 import io
-import random
 
 # Elegant Styling
 st.markdown("""
@@ -16,7 +15,11 @@ st.markdown("""
 
 st.title("🏛️ Official CENT-S Exam Generator")
 
-# Secure API Key from Streamlit Secrets
+# Helper to fix Unicode errors
+def clean_text(text):
+    """Replaces smart quotes and other non-latin1 characters."""
+    return text.encode('latin-1', 'replace').decode('latin-1').replace('?', "'")
+
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
@@ -32,42 +35,43 @@ if uploaded_file:
 
     if st.button("Generate Full 55-Question Exam"):
         with st.spinner("Engineering 55 scientific questions..."):
-            # Detailed Prompt to ensure standard distribution and answer spread
             prompt = f"""
-            Act as a CISIA Exam Designer. Create a full CENT-S Exam based on this context: {context[:3000]}
+            Act as a CISIA Exam Designer. Create a full CENT-S Exam.
+            STRUCTURE:
+            - 15 Math questions.
+            - 15 Reasoning on Texts and Data.
+            - 10 Biology questions.
+            - 10 Chemistry questions.
+            - 5 Physics questions.
             
-            DISTRIBUTION:
-            1. 15 Mathematics questions (Algebra, Trigonometry, Calculus).
-            2. 15 Reasoning on Texts and Data.
-            3. 10 Biology questions (Cell, Genetics, Anatomy).
-            4. 10 Chemistry questions (Stoichiometry, Periodic Table).
-            5. 5 Physics questions (Mechanics, Thermodynamics).
-            
-            STRICT RULES:
-            - EXACTLY 4 options (a, b, c, d) per question.
-            - RANDOMIZE the correct answer position. Spread 'a, b, c, d' evenly across the 55 questions.
-            - Format: "Q[number]. [Question text]" followed by the options.
-            - List all answers in a separate 'Answer Key' section at the very end.
+            RULES:
+            1. Exactly 4 options (a, b, c, d).
+            2. Spread correct answers EVENLY across a, b, c, and d. Do NOT cluster them.
+            3. Use formal scientific English.
+            4. Provide an Answer Key at the very end.
+            Context: {context[:3000]}
             """
             
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
             )
-            full_exam = response.choices[0].message.content
-            st.markdown(full_exam)
+            raw_exam = response.choices[0].message.content
+            
+            # Sanitize text for PDF encoding
+            safe_exam = clean_text(raw_exam)
+            st.markdown(safe_exam)
 
             # PDF Generation
             pdf = FPDF()
             pdf.add_page()
-            pdf.set_font("Times", size=12)
-            pdf.multi_cell(0, 10, txt=full_exam)
+            pdf.set_font("Helvetica", size=10)
+            pdf.multi_cell(0, 10, txt=safe_exam)
             
-            # Use BytesIO to create a downloadable file
             pdf_output = pdf.output(dest='S')
             st.download_button(
                 label="📥 Download Official Exam PDF",
                 data=pdf_output,
-                file_name="CENT-S_Full_Exam.pdf",
+                file_name="CENT-S_Scientific_Exam.pdf",
                 mime="application/pdf"
             )
