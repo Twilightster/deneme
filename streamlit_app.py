@@ -1,27 +1,44 @@
 import streamlit as st
+from openai import OpenAI
+from PyPDF2 import PdfReader
 
-# 1. App Header
 st.title("🚀 CENT-S Engine")
-st.markdown("### AI-Powered Question Generator for University Entrance")
+st.markdown("### AI-Powered Question Generator")
 
-# 2. Upload Area
-st.sidebar.header("Settings")
+# Secure way to handle API Key
 api_key = st.sidebar.text_input("Enter OpenAI API Key", type="password")
 
-uploaded_file = st.file_uploader("Upload your current CENT-S questions (PDF or TXT)", type=["pdf", "txt"])
+st.header("1. Upload Example Questions")
+uploaded_file = st.file_uploader("Upload your CENT-S PDFs", type="pdf")
 
-# 3. Logic Area
-if uploaded_file:
-    st.success("File uploaded! Analyzing the 'vibe' of your questions...")
+if uploaded_file and api_key:
+    # Extract text from the PDF
+    reader = PdfReader(uploaded_file)
+    example_text = ""
+    for page in reader.pages:
+        example_text += page.extract_text()
     
-    topic = st.text_input("What topic should the new questions be about?")
-    num_questions = st.slider("Number of questions to generate", 1, 10, 3)
+    st.success("CENT-S examples analyzed!")
 
-    if st.button("Generate Questions"):
-        if not api_key:
-            st.error("Please enter your API key in the sidebar first!")
-        else:
-            # This is where your AI 'Vibe' logic will live
-            st.info(f"Generating {num_questions} questions about {topic}...")
-            st.write("---")
-            st.write("**Sample Question 1:** [AI Output will appear here]")
+    st.header("2. Generate New Questions")
+    topic = st.text_input("Target Topic (e.g., Mathematics, Logic)")
+    num_q = st.slider("Number of questions", 1, 10, 3)
+
+    if st.button("Generate Now"):
+        client = OpenAI(api_key=api_key)
+        
+        # The 'Few-Shot' Vibe Prompt
+        prompt = f"""
+        You are the CENT-S Engine. 
+        Study the formatting, difficulty, and style of these questions:
+        {example_text[:2000]} 
+        
+        Now, generate {num_q} NEW questions about '{topic}' in that EXACT format.
+        """
+        
+        with st.spinner("Creating questions..."):
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            st.write(response.choices[0].message.content)
