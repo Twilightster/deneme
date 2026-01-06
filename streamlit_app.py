@@ -1,36 +1,41 @@
 import streamlit as st
-from openai import OpenAI
-from pypdf import PdfReader # Use 'pypdf' as it is the modern version
+from groq import Groq
+from pypdf import PdfReader
 
-st.title("🚀 CENT-S Engine")
-st.markdown("### AI-Powered Question Generator")
+st.title("🚀 CENT-S Engine (Free Edition)")
+st.markdown("### Powered by Groq & Llama 3")
 
-# 1. Sidebar for API Key
-api_key = st.sidebar.text_input("Enter OpenAI API Key", type="password")
+# 1. Sidebar for FREE Groq Key
+api_key = st.sidebar.text_input("Enter Groq API Key", type="password")
 
 st.header("1. Upload Example Questions")
-uploaded_file = st.file_uploader("Upload your CENT-S PDFs", type="pdf")
+uploaded_file = st.file_uploader("Upload your CENT-S PDF", type="pdf")
 
-# 2. Extract and Learn
 if uploaded_file and api_key:
+    # Read the PDF text
     reader = PdfReader(uploaded_file)
-    # Extract text from all pages to 'teach' the AI the format
     raw_text = "".join([page.extract_text() for page in reader.pages])
-    st.success(f"Analyzed {len(reader.pages)} pages of CENT-S context!")
+    st.success("CENT-S vibe analyzed for free!")
 
     st.header("2. Generate New Questions")
-    topic = st.text_input("Topic for new questions (e.g. Logic, Math)")
-    num_q = st.slider("How many questions?", 1, 10, 3)
+    topic = st.text_input("Topic for new questions")
+    num_q = st.slider("Quantity", 1, 10, 3)
 
     if st.button("Generate Now"):
-        client = OpenAI(api_key=api_key)
-        # Few-Shot Prompt: Providing the example text tells AI the 'vibe'
-        prompt = f"Study these CENT-S examples:\n{raw_text[:2000]}\n\nGenerate {num_q} NEW questions on '{topic}' in that EXACT format."
+        client = Groq(api_key=api_key)
         
-        with st.spinner("Engineering new questions..."):
-            response = client.chat.completions.create(
-                model="gpt-4o",
+        # Training the AI on your specific vibe
+        prompt = f"""
+        Analyze these CENT-S exam questions for style and format:
+        {raw_text[:3000]}
+        
+        Now, generate {num_q} NEW questions on '{topic}' that match this format exactly.
+        """
+        
+        with st.spinner("Groq is working at lightning speed..."):
+            completion = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
             )
             st.markdown("### Generated Questions")
-            st.write(response.choices[0].message.content)
+            st.write(completion.choices[0].message.content)
