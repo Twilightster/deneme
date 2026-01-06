@@ -1,75 +1,73 @@
 import streamlit as st
 from groq import Groq
 from pypdf import PdfReader
+from fpdf import FPDF
 import io
+import random
 
-# --- 1. Elegant Styling (Custom CSS) ---
+# Elegant Styling
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+Pro:wght@300;400&display=swap');
-    html, body, [class*="css"] {
-        font-family: 'Source Sans Pro', sans-serif;
-    }
-    h1, h2, h3 {
-        font-family: 'Playfair Display', serif;
-    }
-    .stButton>button {
-        background-color: #f0f2f6;
-        border-radius: 20px;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap');
+    h1, h2 { font-family: 'Playfair Display', serif; }
+    [data-testid="stSidebar"] {display: none;}
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏛️ CENT-S Engine")
-st.markdown("##### Professional Entrance Exam Generation")
+st.title("🏛️ Official CENT-S Exam Generator")
 
-# --- 2. Hidden Logic (Secrets) ---
-# Ensure you have set 'GROQ_API_KEY' in your Streamlit Cloud Secrets!
+# Secure API Key from Streamlit Secrets
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("API Key not found in Secrets. Please add it to your app settings.")
+    st.error("Please add GROQ_API_KEY to your Streamlit Secrets.")
     st.stop()
 
-# --- 3. Simple Interface ---
-st.header("Upload Context")
-uploaded_file = st.file_uploader("Upload your master CENT-S PDF for style analysis", type="pdf")
+uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
     reader = PdfReader(uploaded_file)
-    raw_text = "".join([page.extract_text() for page in reader.pages])
-    st.success("Exam patterns analyzed.")
+    context = "".join([page.extract_text() for page in reader.pages[:10]])
+    st.success("Syllabus logic analyzed.")
 
-    if st.button("Generate Full CENT-S Exam"):
-        # The 'Full Exam' Prompt with specific A, B, C, D formatting
-        prompt = f"""
-        Act as a professional CENT-S examiner. Study the following exam content:
-        {raw_text[:4000]}
-        
-        TASK: Generate a COMPLETE new exam based on this context.
-        FORMATTING RULES:
-        1. Every question must have exactly 4 options labeled: a), b), c), d).
-        2. Ensure the difficulty matches the provided text exactly.
-        3. Do not include answers in the main text; list them at the very end.
-        4. Style: Academic and formal.
-        """
-        
-        with st.spinner("Compiling full exam..."):
-            completion = client.chat.completions.create(
+    if st.button("Generate Full 55-Question Exam"):
+        with st.spinner("Engineering 55 scientific questions..."):
+            # Detailed Prompt to ensure standard distribution and answer spread
+            prompt = f"""
+            Act as a CISIA Exam Designer. Create a full CENT-S Exam based on this context: {context[:3000]}
+            
+            DISTRIBUTION:
+            1. 15 Mathematics questions (Algebra, Trigonometry, Calculus).
+            2. 15 Reasoning on Texts and Data.
+            3. 10 Biology questions (Cell, Genetics, Anatomy).
+            4. 10 Chemistry questions (Stoichiometry, Periodic Table).
+            5. 5 Physics questions (Mechanics, Thermodynamics).
+            
+            STRICT RULES:
+            - EXACTLY 4 options (a, b, c, d) per question.
+            - RANDOMIZE the correct answer position. Spread 'a, b, c, d' evenly across the 55 questions.
+            - Format: "Q[number]. [Question text]" followed by the options.
+            - List all answers in a separate 'Answer Key' section at the very end.
+            """
+            
+            response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
             )
-            exam_output = completion.choices[0].message.content
-            st.markdown("---")
-            st.markdown(exam_output)
+            full_exam = response.choices[0].message.content
+            st.markdown(full_exam)
+
+            # PDF Generation
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Times", size=12)
+            pdf.multi_cell(0, 10, txt=full_exam)
             
-            # --- 4. Download Feature ---
-            # Using a BytesIO buffer to allow the user to download the text as a file
-            buf = io.BytesIO()
-            buf.write(exam_output.encode())
+            # Use BytesIO to create a downloadable file
+            pdf_output = pdf.output(dest='S')
             st.download_button(
-                label="📥 Download Final Exam (.txt)",
-                data=buf.getvalue(),
-                file_name="CENTS_Generated_Exam.txt",
-                mime="text/plain"
+                label="📥 Download Official Exam PDF",
+                data=pdf_output,
+                file_name="CENT-S_Full_Exam.pdf",
+                mime="application/pdf"
             )
