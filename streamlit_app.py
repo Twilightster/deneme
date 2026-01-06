@@ -4,7 +4,8 @@ from pypdf import PdfReader
 from fpdf import FPDF
 import io
 
-# Elegant Styling
+# Elegant Layout & Hidden Branding
+st.set_page_config(page_title="CENT-S Engine", layout="centered", initial_sidebar_state="collapsed")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap');
@@ -13,60 +14,62 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏛️ Official CENT-S Exam Generator")
+st.title("🏛️ Official CENT-S Scientific Exam")
 
-# Helper to fix Unicode errors
-def clean_text(text):
-    """Replaces smart quotes and other non-latin1 characters."""
-    return text.encode('latin-1', 'replace').decode('latin-1').replace('?', "'")
-
+# Secret Management
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("Please add GROQ_API_KEY to your Streamlit Secrets.")
+    st.error("Add 'GROQ_API_KEY' to your Streamlit Secrets.")
     st.stop()
 
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
     reader = PdfReader(uploaded_file)
-    context = "".join([page.extract_text() for page in reader.pages[:10]])
-    st.success("Syllabus logic analyzed.")
+    context = "".join([page.extract_text() for page in reader.pages[:15]])
+    st.success("Exam patterns and scientific syllabus analyzed.")
 
-    if st.button("Generate Full 55-Question Exam"):
-        with st.spinner("Engineering 55 scientific questions..."):
+    if st.button("Generate Full 55-Question Paper"):
+        with st.spinner("Compiling scientific sections..."):
             prompt = f"""
-            Act as a CISIA Exam Designer. Create a full CENT-S Exam.
-            STRUCTURE:
-            - 15 Math questions.
-            - 15 Reasoning on Texts and Data.
-            - 10 Biology questions.
-            - 10 Chemistry questions.
-            - 5 Physics questions.
+            Act as a CISIA Exam Designer. Generate a full CENT-S Scientific Exam.
+            SYLLABUS DISTRIBUTION:
+            1. 15 Mathematics questions.
+            2. 15 Reasoning on Texts and Data.
+            3. 10 Biology questions.
+            4. 10 Chemistry questions.
+            5. 5 Physics questions.
             
-            RULES:
-            1. Exactly 4 options (a, b, c, d).
-            2. Spread correct answers EVENLY across a, b, c, and d. Do NOT cluster them.
-            3. Use formal scientific English.
-            4. Provide an Answer Key at the very end.
-            Context: {context[:3000]}
+            STRICT RULES:
+            - Exactly 4 options (a, b, c, d) per question.
+            - SPREAD correct answers evenly across a, b, c, d. Do not cluster them.
+            - Use a formal academic tone. No AI chatter or 'Powered by' text.
+            - Answer Key must be at the very end.
+            Context: {context[:4000]}
             """
             
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
             )
-            raw_exam = response.choices[0].message.content
-            
-            # Sanitize text for PDF encoding
-            safe_exam = clean_text(raw_exam)
-            st.markdown(safe_exam)
+            exam_text = response.choices[0].message.content
+            st.markdown(exam_text)
 
-            # PDF Generation
+            # Professional PDF Generation with Unicode Support
             pdf = FPDF()
             pdf.add_page()
-            pdf.set_font("Helvetica", size=10)
-            pdf.multi_cell(0, 10, txt=safe_exam)
+            
+            # --- CRITICAL: Add and set your custom font here ---
+            # Make sure 'DejaVuSans.ttf' is uploaded to your GitHub repo!
+            try:
+                pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+                pdf.set_font("DejaVu", size=10)
+            except:
+                st.warning("Custom font file not found. Falling back to Helvetica (may cause errors with special symbols).")
+                pdf.set_font("Helvetica", size=10)
+            
+            pdf.multi_cell(0, 10, txt=exam_text)
             
             pdf_output = pdf.output(dest='S')
             st.download_button(
