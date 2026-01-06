@@ -4,14 +4,14 @@ from pypdf import PdfReader
 from fpdf import FPDF
 import io
 
-# 1. Professional Page Setup & Elegant Branding
+# 1. Page Configuration & Elegant Branding
 st.set_page_config(page_title="CENT-S Engine", layout="centered", initial_sidebar_state="collapsed")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap');
     h1 { font-family: 'Playfair Display', serif; text-align: center; color: #1a1a1a; }
     [data-testid="stSidebar"] {display: none;}
-    .stButton>button { border-radius: 20px; width: 100%; height: 3.5em; font-weight: bold; background-color: #f0f2f6; }
+    .stButton>button { border-radius: 20px; width: 100%; height: 3.5em; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -24,11 +24,11 @@ except KeyError:
     st.error("Missing GROQ_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# Initialize Session State to persist the exam content across reruns
+# PERSISTENCE: Initialize Session State to keep data across reruns
 if "exam_text" not in st.session_state:
     st.session_state.exam_text = None
 
-# 3. File Upload Section
+# 3. Reference Material Upload
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
@@ -72,14 +72,12 @@ if uploaded_file:
         
         pdf.multi_cell(0, 10, txt=st.session_state.exam_text)
         
-        # Output as bytes for safe handling by Streamlit
-        pdf_bytes = pdf.output(dest='S')
-        if isinstance(pdf_bytes, str):
-            pdf_bytes = pdf_bytes.encode('latin-1', 'replace')
+        # Output directly to a binary object for safe downloading
+        pdf_output = pdf.output()
         
         st.download_button(
             label="📥 Download Official Exam PDF",
-            data=pdf_bytes,
+            data=pdf_output,
             file_name="CENT-S_Scientific_Exam.pdf",
             mime="application/pdf"
         )
