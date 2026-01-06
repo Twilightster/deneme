@@ -2,9 +2,8 @@ import streamlit as st
 from groq import Groq
 from pypdf import PdfReader
 from fpdf import FPDF
-import io
 
-# 1. Page Configuration & Elegant Branding
+# 1. Professional Page Setup
 st.set_page_config(page_title="CENT-S Engine", layout="centered", initial_sidebar_state="collapsed")
 st.markdown("""
     <style>
@@ -24,9 +23,11 @@ except KeyError:
     st.error("Missing GROQ_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# PERSISTENCE: Initialize Session State to keep data across reruns
+# PERSISTENCE: This part is critical to stop the error
 if "exam_text" not in st.session_state:
     st.session_state.exam_text = None
+if "pdf_data" not in st.session_state:
+    st.session_state.pdf_data = None
 
 # 3. Reference Material Upload
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
@@ -40,44 +41,38 @@ if uploaded_file:
             prompt = f"""
             Act as a CISIA Exam Designer. Generate a full CENT-S Scientific Exam.
             STRUCTURE: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
-            STRICT RULES: 
-            - Exactly 4 options (a, b, c, d). 
-            - RANDOMIZE correct answer positions (spread them evenly).
-            - Formal academic tone. 
-            - Include an Answer Key at the very end.
-            Reference Context: {context_text[:3000]}
+            STRICT RULES: Exactly 4 options (a, b, c, d). RANDOMIZE correct answers. 
+            Formal academic tone. Include an Answer Key at the very end.
+            Context: {context_text[:3000]}
             """
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
             )
-            # Store result in session state to prevent 'vanishing' data error
+            # Store results in session state so they survive the page rerun
             st.session_state.exam_text = response.choices[0].message.content
+            
+            # Create the PDF immediately after generation
+            pdf = FPDF()
+            pdf.add_page()
+            try:
+                # Using the font you successfully uploaded to GitHub (image_7a4d1d.png)
+                pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+                pdf.set_font("DejaVu", size=10)
+            except:
+                pdf.set_font("Helvetica", size=10)
+            
+            pdf.multi_cell(0, 10, txt=st.session_state.exam_text)
+            st.session_state.pdf_data = pdf.output()
 
-    # 4. Results & PDF Export Section
-    if st.session_state.exam_text:
+    # 4. Display and Download (only if data exists)
+    if st.session_state.exam_text and st.session_state.pdf_data:
         st.markdown("---")
         st.markdown(st.session_state.exam_text)
 
-        # Build PDF using the custom font from your GitHub repository
-        pdf = FPDF()
-        pdf.add_page()
-        
-        try:
-            # File name must match 'DejaVuSans.ttf' as seen in image_7a4d1d.png
-            pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
-            pdf.set_font("DejaVu", size=10)
-        except:
-            pdf.set_font("Helvetica", size=10)
-        
-        pdf.multi_cell(0, 10, txt=st.session_state.exam_text)
-        
-        # Output directly to a binary object for safe downloading
-        pdf_output = pdf.output()
-        
         st.download_button(
             label="📥 Download Official Exam PDF",
-            data=pdf_output,
+            data=st.session_state.pdf_data,
             file_name="CENT-S_Scientific_Exam.pdf",
             mime="application/pdf"
         )
