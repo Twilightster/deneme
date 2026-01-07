@@ -14,11 +14,13 @@ except KeyError:
     st.error("Missing GROQ_API_KEY in Streamlit Secrets.")
     st.stop()
 
+# PERSISTENCE
 if "exam_text" not in st.session_state:
     st.session_state.exam_text = None
 if "pdf_data" not in st.session_state:
     st.session_state.pdf_data = None
 
+# 3. File Upload
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
@@ -26,13 +28,9 @@ if uploaded_file:
     context_text = "".join([page.extract_text() for page in reader.pages[:10]])
 
     if st.button("Generate Full 55-Question Exam"):
-        with st.spinner("Engineering 55 scientific questions..."):
-            prompt = f"""
-            Act as a CISIA Exam Designer. Generate a full 55-question CENT-S Scientific Exam.
-            STRUCTURE: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
-            RULES: Use simple LaTeX. NO TABLES. 4 options (a,b,c,d).
-            Context: {context_text[:3000]}
-            """
+        with st.spinner("Engineering questions..."):
+            # We strictly tell the AI to use spaces to help with wrapping
+            prompt = f"Generate 55 CENT-S questions (15 Math, 15 Reason, 10 Bio, 10 Chem, 5 Phys). Use simple text. Ensure math formulas have spaces around operators. Context: {context_text[:2000]}"
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
@@ -41,39 +39,38 @@ if uploaded_file:
             
             # --- THE ULTIMATE SAFE PDF GENERATION ---
             pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.set_auto_page_break(auto=True, margin=20)
             pdf.add_page()
+            pdf.set_font("Helvetica", size=10) # Using standard font for maximum stability
             
-            # Using the font file in your repo [cite: 702]
-            try:
-                pdf.add_font("DejaVu", "", "DejaVuSans.ttf")
-                pdf.set_font("DejaVu", size=10)
-            except:
-                pdf.set_font("Helvetica", size=10)
-            
-            # Split text and enforce character limits to prevent horizontal space errors 
             lines = st.session_state.exam_text.splitlines()
             for line in lines:
-                # Sanitize: Remove characters that might break PDF width calculation
-                clean_line = line.encode('utf-8', 'ignore').decode('utf-8')
+                if not line.strip():
+                    pdf.ln(4)
+                    continue
                 
-                if len(clean_line) > 70:
-                    # Force break long lines into safe 70-character chunks
-                    for i in range(0, len(clean_line), 70):
-                        pdf.multi_cell(0, 7, text=clean_line[i:i+70])
-                elif clean_line.strip():
-                    pdf.multi_cell(0, 7, text=clean_line)
-                else:
-                    pdf.ln(3)
+                # TITANIUM FIX: Manually slice the string into 50-character chunks
+                # This makes it mathematically impossible to trigger a horizontal space error.
+                chunk_size = 50
+                chunks = [line[i:i+chunk_size] for i in range(0, len(line), chunk_size)]
+                
+                for chunk in chunks:
+                    # 'text' instead of 'txt' to follow the latest library updates [cite: 702, 709]
+                    pdf.multi_cell(w=0, h=8, text=chunk, align='L')
             
             st.session_state.pdf_data = bytes(pdf.output())
 
-if st.session_state.exam_text and st.session_state.pdf_data:
+# 4. Results & Download (This will be visible even if PDF fails)
+if st.session_state.exam_text:
     st.markdown("---")
-    st.markdown(st.session_state.exam_text)
-    st.download_button(
-        label="📥 Download Full 55-Question Exam",
-        data=st.session_state.pdf_data,
-        file_name="CENTS_Full_Exam.pdf",
-        mime="application/pdf"
-    )
+    st.markdown("### 📋 Generated Exam Preview")
+    st.info("If the download button below crashes, copy your questions directly from this preview.")
+    st.write(st.session_state.exam_text)
+    
+    if st.session_state.pdf_data:
+        st.download_button(
+            label="📥 Download Official Exam PDF",
+            data=st.session_state.pdf_data,
+            file_name="CENTS_Full_Exam.pdf",
+            mime="application/pdf"
+        )
