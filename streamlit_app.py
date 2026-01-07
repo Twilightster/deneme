@@ -3,7 +3,7 @@ from groq import Groq
 from pypdf import PdfReader
 from fpdf import FPDF
 
-# 1. Professional UI Setup
+# 1. Page Configuration
 st.set_page_config(page_title="CENT-S Engine", layout="centered", initial_sidebar_state="collapsed")
 st.markdown("""
     <style>
@@ -23,39 +23,31 @@ except KeyError:
     st.error("Missing GROQ_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# PERSISTENCE: Data remains safe during reruns
+# PERSISTENCE
 if "exam_text" not in st.session_state:
     st.session_state.exam_text = None
 if "pdf_data" not in st.session_state:
     st.session_state.pdf_data = None
 
-# 3. Reference Material Upload
+# 3. File Upload
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
     reader = PdfReader(uploaded_file)
-    # Analyze up to 15 pages for deeper syllabus context
-    context_text = "".join([page.extract_text() for page in reader.pages[:15]])
+    context_text = "".join([page.extract_text() for page in reader.pages[:10]])
 
     if st.button("Generate Full 55-Question Exam"):
-        with st.spinner("Engineering official 55-question structure..."):
+        with st.spinner("Engineering 55 scientific questions..."):
             prompt = f"""
             Act as a CISIA Exam Designer. Generate a full 55-question CENT-S Scientific Exam.
-            
-            STRUCTURE REQUIREMENTS:
-            - Mathematics: 15 questions (numbered 1-15)
-            - Reasoning on Texts and Data: 15 questions (numbered 16-30)
-            - Biology: 10 questions (numbered 31-40)
-            - Chemistry: 10 questions (numbered 41-50)
-            - Physics: 5 questions (numbered 51-55)
+            STRUCTURE: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
             
             STRICT RULES:
-            1. Use LaTeX for math/science (e.g., $log_{{2}}200$ or $CaCO_{{3}}$).
-            2. For reasoning data, present it as a clear vertical list instead of a grid.
+            1. Use LaTeX for math/science (e.g., $log_{{2}}200$).
+            2. NO TABLES. Use bullet points for data sets to prevent PDF crashes.
             3. Exactly 4 options (a, b, c, d). RANDOMIZE correct answers.
-            4. Include a numbered Answer Key at the very end.
-            
-            Reference: {context_text[:4000]}
+            4. Include an Answer Key at the very end.
+            Context: {context_text[:3000]}
             """
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
@@ -63,26 +55,28 @@ if uploaded_file:
             )
             st.session_state.exam_text = response.choices[0].message.content
             
-            # --- Safe PDF Generation ---
+            # --- CRASH-PROOF PDF GENERATION ---
             pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
+            
             try:
-                # Use the font verified in your GitHub repository
+                # Use DejaVuSans.ttf if it exists in your GitHub repo
                 pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
                 pdf.set_font("DejaVu", size=10)
             except:
                 pdf.set_font("Helvetica", size=10)
             
-            # Use multi_cell for all lines to prevent horizontal space errors
+            # Split by lines and render each line with forced wrapping
             lines = st.session_state.exam_text.split('\n')
             for line in lines:
                 if line.strip():
-                    # Width=0 means use the full width of the page margin to margin
-                    pdf.multi_cell(0, 8, txt=line)
+                    # Width 0 means "use full available width of page"
+                    # This prevents the "Not enough horizontal space" error
+                    pdf.multi_cell(0, 7, txt=line)
                 else:
-                    pdf.ln(4)
+                    pdf.ln(3)
             
-            # Convert to bytes for safe Streamlit downloading
             st.session_state.pdf_data = bytes(pdf.output())
 
     # 4. Results & Download
