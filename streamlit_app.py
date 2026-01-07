@@ -3,7 +3,7 @@ from groq import Groq
 from pypdf import PdfReader
 from fpdf import FPDF
 
-# 1. Professional Page Setup
+# 1. Page Configuration
 st.set_page_config(page_title="CENT-S Engine", layout="centered", initial_sidebar_state="collapsed")
 st.markdown("""
     <style>
@@ -29,7 +29,7 @@ if "exam_text" not in st.session_state:
 if "pdf_data" not in st.session_state:
     st.session_state.pdf_data = None
 
-# 3. File Upload
+# 3. Reference Material Upload
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
@@ -42,13 +42,12 @@ if uploaded_file:
             Act as a CISIA Exam Designer. Generate a full 55-question CENT-S Scientific Exam.
             STRUCTURE: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
             
-            STRICT FORMATTING RULES:
-            1. Use simple LaTeX for formulas (e.g., $E=mc^2$). 
-            2. NO TABLES. Use simple lists for data.
-            3. AVOID very long unbroken strings of characters.
-            4. Exactly 4 options (a, b, c, d). RANDOMIZE correct answers.
-            5. Include an Answer Key at the very end.
-            Context: {context_text[:3000]}
+            STRICT RULES:
+            1. Use simple LaTeX ($...$). AVOID extremely long formulas on a single line.
+            2. NO TABLES. Use bullet points for data sets.
+            3. Exactly 4 options (a, b, c, d).
+            4. Include an Answer Key at the very end.
+            Reference: {context_text[:3000]}
             """
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
@@ -58,24 +57,25 @@ if uploaded_file:
             
             # --- CRASH-PROOF PDF GENERATION ---
             pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=20)
             pdf.add_page()
-            
             try:
-                # Use the font file in your GitHub repo
-                pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+                # Using the verified font in your repo
+                pdf.add_font("DejaVu", "", "DejaVuSans.ttf")
                 pdf.set_font("DejaVu", size=10)
             except:
                 pdf.set_font("Helvetica", size=10)
             
-            # Use splitlines to handle the text block safely
-            text_lines = st.session_state.exam_text.splitlines()
-            
-            for line in text_lines:
+            lines = st.session_state.exam_text.splitlines()
+            for line in lines:
                 if line.strip():
-                    # The 'w=0' and 'wrapmode="CHAR"' (if supported) prevent horizontal space errors
-                    # We use a standard multi_cell which is safer for varying content lengths
-                    pdf.multi_cell(0, 7, txt=line, border=0, align='L', fill=False)
+                    # THE FIX: If a line is longer than 85 chars, force-break it 
+                    # This prevents the 'Not enough horizontal space' crash.
+                    if len(line) > 85:
+                        chunks = [line[i:i+85] for i in range(0, len(line), 85)]
+                        for chunk in chunks:
+                            pdf.multi_cell(0, 7, text=chunk)
+                    else:
+                        pdf.multi_cell(0, 7, text=line)
                 else:
                     pdf.ln(3)
             
