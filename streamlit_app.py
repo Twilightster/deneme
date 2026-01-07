@@ -2,8 +2,9 @@ import streamlit as st
 from groq import Groq
 from pypdf import PdfReader
 from fpdf import FPDF
+import re
 
-# 1. UI & Page Configuration
+# 1. Professional UI Setup
 st.set_page_config(page_title="CENT-S Engine", layout="wide")
 st.title("🏛️ CENT-S Engine: Official Edition")
 
@@ -28,14 +29,19 @@ if uploaded_file:
     if st.button("Generate Official Exam"):
         with st.spinner("Engineering high-fidelity exam and schemas..."):
             prompt = f"""
-            Act as an Italian University Exam Designer. Generate a 55-question CENT-S Exam.
+            Act as an Italian University Exam Designer. Generate a 55-question practice CENT-S Exam.
+            DISTRIBUTION: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
             
-            FORMATTING RULES:
-            1. Every question MUST have 4 options: A), B), C), D) on new lines.
-            2. Use LaTeX for math (e.g., $x^2 + 4x + 4 = 0$).
-            3. CRITICAL: Add spaces between ALL symbols in formulas to allow wrapping.
-            
-            Distribution: 15 Math, 15 Reason, 10 Bio, 10 Chem, 5 Phys.
+            STRICT FORMATTING RULES:
+            - Number questions 1 to 55.
+            - Every question MUST follow this EXACT pattern:
+              [Question Text]
+              A) [Option]
+              B) [Option]
+              C) [Option]
+              D) [Option]
+            - Use LaTeX for ALL math/science (e.g., $x^2 + 4x + 4 = 0$).
+            - Place the Answer Key at the very end.
             Reference: {context_text[:3000]}
             """
             response = client.chat.completions.create(
@@ -44,47 +50,59 @@ if uploaded_file:
             )
             st.session_state.exam_text = response.choices[0].message.content
             
-            # --- PROFESSIONAL PDF GENERATION ---
+            # --- STRUCTURED PDF GENERATION ---
             pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=20)
             pdf.add_page()
-            pdf.set_font("Helvetica", size=10)
-            
-            # Safety Wrapper: Forces a line break if text is too wide
-            def safe_draw(pdf, text):
-                lines = text.splitlines()
-                for line in lines:
-                    if not line.strip():
-                        pdf.ln(4)
-                        continue
-                    
-                    # We set a fixed width of 170mm (A4 is 210mm)
-                    # This ensures the engine NEVER runs out of horizontal space.
-                    pdf.multi_cell(w=170, h=7, text=line, align='L')
+            pdf.set_font("Helvetica", "B", 14)
+            pdf.cell(0, 10, "CENT-S OFFICIAL PRACTICE TEST", ln=True, align='C')
+            pdf.set_font("Helvetica", "", 10)
+            pdf.ln(5)
 
-            # Render Exam
-            safe_draw(pdf, st.session_state.exam_text)
+            lines = st.session_state.exam_text.splitlines()
+            for line in lines:
+                if not line.strip():
+                    pdf.ln(2)
+                    continue
+                
+                # Detect Options and apply indentation for clean look
+                if re.match(r'^[A-D]\)', line.strip()):
+                    pdf.set_x(20) # Indent options
+                    pdf.multi_cell(170, 7, text=line.strip())
+                elif any(sect in line.upper() for sect in ["MATH", "REASONING", "BIOLOGY", "CHEMISTRY", "PHYSICS"]):
+                    pdf.set_font("Helvetica", "B", 11)
+                    pdf.ln(5)
+                    pdf.multi_cell(180, 8, text=line.strip())
+                    pdf.set_font("Helvetica", "", 10)
+                else:
+                    # General text wrapping with safety width to prevent horizontal space error
+                    pdf.multi_cell(180, 7, text=line.strip())
 
-            # DRAW GEOMETRY SCHEMA (Triangle)
-            if pdf.get_y() > 230: pdf.add_page()
+            # ATTACH GEOMETRIC SCHEMA
+            if pdf.get_y() > 220: pdf.add_page()
             y = pdf.get_y() + 10
             pdf.set_draw_color(0, 0, 0)
-            pdf.line(20, y+30, 80, y+30) # Base
-            pdf.line(20, y+30, 50, y)    # Left
-            pdf.line(50, y, 80, y+30)    # Right
+            pdf.line(30, y+30, 90, y+30) # Base
+            pdf.line(30, y+30, 60, y)    # Left
+            pdf.line(60, y, 90, y+30)    # Right
             pdf.set_font("Helvetica", "B", 10)
-            pdf.text(48, y-2, "C")
-            pdf.text(18, y+35, "A")
-            pdf.text(78, y+35, "B")
+            pdf.text(58, y-2, "C")
+            pdf.text(28, y+35, "A")
+            pdf.text(88, y+35, "B")
             pdf.set_font("Helvetica", "I", 8)
-            pdf.text(90, y+15, "Figure 1: Geometric reference for Math Section")
+            pdf.text(100, y+15, "Figure 1: Geometric reference for Mathematics section")
 
             st.session_state.pdf_data = bytes(pdf.output())
 
 # 4. Results Section
 if st.session_state.exam_text:
     st.markdown("---")
-    st.markdown("### 📋 Exam Preview")
-    st.write(st.session_state.exam_text)
+    st.markdown(st.session_state.exam_text)
     
     if st.session_state.pdf_data:
-        st.download_button("📥 Download Official Exam PDF", data=st.session_state.pdf_data, file_name="CENTS_Official_Exam.pdf")
+        st.download_button(
+            label="📥 Download Structured Exam PDF",
+            data=st.session_state.pdf_data,
+            file_name="CENTS_Official_Exam.pdf",
+            mime="application/pdf"
+        )
