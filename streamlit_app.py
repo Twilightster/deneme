@@ -29,7 +29,7 @@ if "exam_text" not in st.session_state:
 if "pdf_data" not in st.session_state:
     st.session_state.pdf_data = None
 
-# 3. Reference Material Upload
+# 3. File Upload
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
@@ -42,11 +42,11 @@ if uploaded_file:
             Act as a CISIA Exam Designer. Generate a full 55-question CENT-S Scientific Exam.
             STRUCTURE: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
             
-            STRICT RULES:
-            1. Use simple LaTeX ($...$). AVOID extremely long formulas on a single line.
+            RULES:
+            1. Use simple LaTeX ($...$). Avoid extremely long formulas on one line.
             2. NO TABLES. Use bullet points for data sets.
             3. Exactly 4 options (a, b, c, d).
-            4. Include an Answer Key at the very end.
+            4. Include an Answer Key at the end.
             Reference: {context_text[:3000]}
             """
             response = client.chat.completions.create(
@@ -57,19 +57,21 @@ if uploaded_file:
             
             # --- CRASH-PROOF PDF GENERATION ---
             pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
+            
             try:
-                # Using the verified font in your repo
+                # Use font in your repo; 'uni' is deprecated so we use 'text' param below
                 pdf.add_font("DejaVu", "", "DejaVuSans.ttf")
                 pdf.set_font("DejaVu", size=10)
             except:
                 pdf.set_font("Helvetica", size=10)
             
+            # Split lines and manually chunk anything too long to prevent horizontal crash
             lines = st.session_state.exam_text.splitlines()
             for line in lines:
                 if line.strip():
-                    # THE FIX: If a line is longer than 85 chars, force-break it 
-                    # This prevents the 'Not enough horizontal space' crash.
+                    # THE TITANIUM FIX: Force-break strings longer than 85 characters
                     if len(line) > 85:
                         chunks = [line[i:i+85] for i in range(0, len(line), 85)]
                         for chunk in chunks:
@@ -87,7 +89,7 @@ if uploaded_file:
         st.markdown(st.session_state.exam_text)
 
         st.download_button(
-            label="📥 Download Pro 55-Question PDF",
+            label="📥 Download Full 55-Question Exam",
             data=st.session_state.pdf_data,
             file_name="CENTS_Full_Exam.pdf",
             mime="application/pdf"
