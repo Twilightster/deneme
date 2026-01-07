@@ -4,16 +4,7 @@ from pypdf import PdfReader
 from fpdf import FPDF
 
 # 1. Page Configuration
-st.set_page_config(page_title="CENT-S Engine", layout="centered", initial_sidebar_state="collapsed")
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap');
-    h1 { font-family: 'Playfair Display', serif; text-align: center; color: #1a1a1a; }
-    [data-testid="stSidebar"] {display: none;}
-    .stButton>button { border-radius: 20px; width: 100%; height: 3.5em; font-weight: bold; }
-    </style>
-    """, unsafe_allow_html=True)
-
+st.set_page_config(page_title="CENT-S Engine", layout="centered")
 st.title("🏛️ CENT-S Engine")
 
 # 2. Secure API Connection
@@ -23,13 +14,11 @@ except KeyError:
     st.error("Missing GROQ_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# PERSISTENCE
 if "exam_text" not in st.session_state:
     st.session_state.exam_text = None
 if "pdf_data" not in st.session_state:
     st.session_state.pdf_data = None
 
-# 3. File Upload
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
@@ -41,13 +30,8 @@ if uploaded_file:
             prompt = f"""
             Act as a CISIA Exam Designer. Generate a full 55-question CENT-S Scientific Exam.
             STRUCTURE: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
-            
-            RULES:
-            1. Use simple LaTeX ($...$). Avoid extremely long formulas on one line.
-            2. NO TABLES. Use bullet points for data sets.
-            3. Exactly 4 options (a, b, c, d).
-            4. Include an Answer Key at the end.
-            Reference: {context_text[:3000]}
+            RULES: Use simple LaTeX. NO TABLES. 4 options (a,b,c,d).
+            Context: {context_text[:3000]}
             """
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
@@ -55,42 +39,41 @@ if uploaded_file:
             )
             st.session_state.exam_text = response.choices[0].message.content
             
-            # --- CRASH-PROOF PDF GENERATION ---
+            # --- THE ULTIMATE SAFE PDF GENERATION ---
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
             
+            # Using the font file in your repo [cite: 702]
             try:
-                # Use font in your repo; 'uni' is deprecated so we use 'text' param below
                 pdf.add_font("DejaVu", "", "DejaVuSans.ttf")
                 pdf.set_font("DejaVu", size=10)
             except:
                 pdf.set_font("Helvetica", size=10)
             
-            # Split lines and manually chunk anything too long to prevent horizontal crash
+            # Split text and enforce character limits to prevent horizontal space errors 
             lines = st.session_state.exam_text.splitlines()
             for line in lines:
-                if line.strip():
-                    # THE TITANIUM FIX: Force-break strings longer than 85 characters
-                    if len(line) > 85:
-                        chunks = [line[i:i+85] for i in range(0, len(line), 85)]
-                        for chunk in chunks:
-                            pdf.multi_cell(0, 7, text=chunk)
-                    else:
-                        pdf.multi_cell(0, 7, text=line)
+                # Sanitize: Remove characters that might break PDF width calculation
+                clean_line = line.encode('utf-8', 'ignore').decode('utf-8')
+                
+                if len(clean_line) > 70:
+                    # Force break long lines into safe 70-character chunks
+                    for i in range(0, len(clean_line), 70):
+                        pdf.multi_cell(0, 7, text=clean_line[i:i+70])
+                elif clean_line.strip():
+                    pdf.multi_cell(0, 7, text=clean_line)
                 else:
                     pdf.ln(3)
             
             st.session_state.pdf_data = bytes(pdf.output())
 
-    # 4. Results & Download
-    if st.session_state.exam_text and st.session_state.pdf_data:
-        st.markdown("---")
-        st.markdown(st.session_state.exam_text)
-
-        st.download_button(
-            label="📥 Download Full 55-Question Exam",
-            data=st.session_state.pdf_data,
-            file_name="CENTS_Full_Exam.pdf",
-            mime="application/pdf"
-        )
+if st.session_state.exam_text and st.session_state.pdf_data:
+    st.markdown("---")
+    st.markdown(st.session_state.exam_text)
+    st.download_button(
+        label="📥 Download Full 55-Question Exam",
+        data=st.session_state.pdf_data,
+        file_name="CENTS_Full_Exam.pdf",
+        mime="application/pdf"
+    )
