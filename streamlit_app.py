@@ -23,7 +23,7 @@ except KeyError:
     st.error("Missing GROQ_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# PERSISTENCE: Lock the data into session state
+# PERSISTENCE
 if "exam_text" not in st.session_state:
     st.session_state.exam_text = None
 if "pdf_data" not in st.session_state:
@@ -36,15 +36,16 @@ if uploaded_file:
     reader = PdfReader(uploaded_file)
     context_text = "".join([page.extract_text() for page in reader.pages[:10]])
 
-    if st.button("Generate Pro 55-Question Exam"):
-        with st.spinner("Engineering 110-minute scientific structure..."):
+    if st.button("Generate Full 55-Question Exam"):
+        with st.spinner("Engineering 55 scientific questions..."):
             prompt = f"""
             Act as a CISIA Exam Designer. Generate a full 55-question CENT-S Scientific Exam.
-            STRUCTURE: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
+            
+            DISTRIBUTION: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
             
             STRICT RULES:
-            1. Use LaTeX for math/science (e.g., $CaCO_{{3}}$).
-            2. For data tables, use simple Markdown.
+            1. Use LaTeX for math/science (e.g., $log_{{2}}200$ or $CaCO_{{3}}$).
+            2. For reasoning tables, use simple Markdown.
             3. Exactly 4 options (a, b, c, d). RANDOMIZE correct answers.
             4. Include an Answer Key at the very end.
             Context: {context_text[:3000]}
@@ -55,7 +56,7 @@ if uploaded_file:
             )
             st.session_state.exam_text = response.choices[0].message.content
             
-            # --- PDF Generation with Space Protection ---
+            # --- PDF Generation with Safety Logic ---
             pdf = FPDF()
             pdf.add_page()
             try:
@@ -67,21 +68,25 @@ if uploaded_file:
             
             lines = st.session_state.exam_text.split('\n')
             for line in lines:
-                # Safe table rendering to prevent "Not enough horizontal space"
+                # Detect and draw tables with horizontal safety
                 if "|" in line and "--" not in line:
                     cols = [c.strip() for c in line.split("|") if c.strip()]
                     if cols:
-                        col_width = (pdf.w - 20) / len(cols)
+                        # Calculate width: page width minus margins, divided by columns
+                        effective_page_width = pdf.w - 2 * pdf.l_margin
+                        col_width = effective_page_width / len(cols)
+                        
+                        # Use cell with precise width to prevent 'horizontal space' crash
                         for col in cols:
                             pdf.cell(col_width, 10, col, border=1)
                         pdf.ln()
                 else:
+                    # Normal text rendering
                     pdf.multi_cell(0, 8, txt=line)
             
-            # Final output as bytes for Streamlit
             st.session_state.pdf_data = bytes(pdf.output())
 
-    # 4. Results & Download Section
+    # 4. Results & Download
     if st.session_state.exam_text and st.session_state.pdf_data:
         st.markdown("---")
         st.markdown(st.session_state.exam_text)
@@ -89,6 +94,6 @@ if uploaded_file:
         st.download_button(
             label="📥 Download Pro 55-Question PDF",
             data=st.session_state.pdf_data,
-            file_name="CENTS_Engine_Pro.pdf",
+            file_name="CENTS_Engine_Full_Exam.pdf",
             mime="application/pdf"
         )
