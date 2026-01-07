@@ -20,7 +20,7 @@ if "exam_text" not in st.session_state:
 if "pdf_data" not in st.session_state:
     st.session_state.pdf_data = None
 
-# 3. File Upload
+# 3. Reference Material Upload
 uploaded_file = st.file_uploader("Upload reference CENT-S material (PDF)", type="pdf")
 
 if uploaded_file:
@@ -29,8 +29,7 @@ if uploaded_file:
 
     if st.button("Generate Full 55-Question Exam"):
         with st.spinner("Engineering questions..."):
-            # We strictly tell the AI to use spaces to help with wrapping
-            prompt = f"Generate 55 CENT-S questions (15 Math, 15 Reason, 10 Bio, 10 Chem, 5 Phys). Use simple text. Ensure math formulas have spaces around operators. Context: {context_text[:2000]}"
+            prompt = f"Generate 55 CENT-S questions (15 Math, 15 Reason, 10 Bio, 10 Chem, 5 Phys). Use simple text only. Ensure no extremely long unbroken words or formulas. Context: {context_text[:2000]}"
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
@@ -41,30 +40,36 @@ if uploaded_file:
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=20)
             pdf.add_page()
-            pdf.set_font("Helvetica", size=10) # Using standard font for maximum stability
+            # Using Helvetica for maximum stability across all characters
+            pdf.set_font("Helvetica", size=10) 
             
-            lines = st.session_state.exam_text.splitlines()
-            for line in lines:
-                if not line.strip():
-                    pdf.ln(4)
-                    continue
-                
-                # TITANIUM FIX: Manually slice the string into 50-character chunks
-                # This makes it mathematically impossible to trigger a horizontal space error.
-                chunk_size = 50
-                chunks = [line[i:i+chunk_size] for i in range(0, len(line), chunk_size)]
-                
-                for chunk in chunks:
-                    # 'text' instead of 'txt' to follow the latest library updates [cite: 702, 709]
-                    pdf.multi_cell(w=0, h=8, text=chunk, align='L')
+            def safe_text_output(pdf, text, max_chars=60):
+                """Force-breaks any line longer than max_chars to prevent horizontal space errors."""
+                lines = text.splitlines()
+                for line in lines:
+                    if not line.strip():
+                        pdf.ln(5)
+                        continue
+                    
+                    # If a line is physically too long, chop it into chunks
+                    if len(line) > max_chars:
+                        for i in range(0, len(line), max_chars):
+                            chunk = line[i:i+max_chars]
+                            pdf.multi_cell(0, 8, text=chunk)
+                    else:
+                        pdf.multi_cell(0, 8, text=line)
+
+            # Process the generated text through the safe wrapper
+            safe_text_output(pdf, st.session_state.exam_text)
             
+            # Convert to bytes for safe Streamlit download [cite: 91, 715, 822]
             st.session_state.pdf_data = bytes(pdf.output())
 
-# 4. Results & Download (This will be visible even if PDF fails)
+# 4. Results & Download (Always show preview if data exists)
 if st.session_state.exam_text:
     st.markdown("---")
-    st.markdown("### 📋 Generated Exam Preview")
-    st.info("If the download button below crashes, copy your questions directly from this preview.")
+    st.markdown("### 📋 Exam Preview")
+    st.info("Your questions are generated below. If the PDF button crashes, copy directly from here.")
     st.write(st.session_state.exam_text)
     
     if st.session_state.pdf_data:
