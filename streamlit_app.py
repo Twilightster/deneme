@@ -3,7 +3,7 @@ from groq import Groq
 from pypdf import PdfReader
 from fpdf import FPDF
 
-# 1. Page Configuration
+# 1. Professional Page Setup
 st.set_page_config(page_title="CENT-S Engine", layout="centered")
 st.title("🏛️ CENT-S Engine")
 
@@ -28,54 +28,48 @@ if uploaded_file:
     context_text = "".join([page.extract_text() for page in reader.pages[:10]])
 
     if st.button("Generate Full 55-Question Exam"):
-        with st.spinner("Engineering questions..."):
-            prompt = f"Generate 55 CENT-S questions (15 Math, 15 Reason, 10 Bio, 10 Chem, 5 Phys). Use simple text only. Ensure no extremely long unbroken words or formulas. Context: {context_text[:2000]}"
+        with st.spinner("Engineering 55 scientific questions..."):
+            prompt = f"Generate 55 CENT-S questions (15 Math, 15 Reason, 10 Bio, 10 Chem, 5 Phys). Use simple LaTeX. NO TABLES. Context: {context_text[:2000]}"
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
             )
             st.session_state.exam_text = response.choices[0].message.content
             
-            # --- THE ULTIMATE SAFE PDF GENERATION ---
+            # --- CRASH-PROOF PDF GENERATION ---
             pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=20)
+            pdf.set_auto_page_break(auto=True, margin=25) # Increased margin for safety
             pdf.add_page()
-            # Using Helvetica for maximum stability across all characters
             pdf.set_font("Helvetica", size=10) 
             
-            def safe_text_output(pdf, text, max_chars=60):
-                """Force-breaks any line longer than max_chars to prevent horizontal space errors."""
-                lines = text.splitlines()
-                for line in lines:
-                    if not line.strip():
-                        pdf.ln(5)
-                        continue
-                    
-                    # If a line is physically too long, chop it into chunks
-                    if len(line) > max_chars:
-                        for i in range(0, len(line), max_chars):
-                            chunk = line[i:i+max_chars]
-                            pdf.multi_cell(0, 8, text=chunk)
-                    else:
-                        pdf.multi_cell(0, 8, text=line)
-
-            # Process the generated text through the safe wrapper
-            safe_text_output(pdf, st.session_state.exam_text)
+            lines = st.session_state.exam_text.splitlines()
+            for line in lines:
+                if not line.strip():
+                    pdf.ln(5)
+                    continue
+                
+                # TITANIUM FIX: If any line is longer than 55 characters, 
+                # we force break it to guarantee it stays inside page margins.
+                if len(line) > 55:
+                    chunks = [line[i:i+55] for i in range(0, len(line), 55)]
+                    for chunk in chunks:
+                        # Use a width of 160mm to ensure it stays far from the edge
+                        pdf.multi_cell(160, 8, text=chunk, align='L')
+                else:
+                    pdf.multi_cell(160, 8, text=line, align='L')
             
-            # Convert to bytes for safe Streamlit download [cite: 91, 715, 822]
             st.session_state.pdf_data = bytes(pdf.output())
 
-# 4. Results & Download (Always show preview if data exists)
+# 4. Results & Download (Preview is always shown)
 if st.session_state.exam_text:
     st.markdown("---")
-    st.markdown("### 📋 Exam Preview")
-    st.info("Your questions are generated below. If the PDF button crashes, copy directly from here.")
+    st.markdown("### 📋 Generated Exam Preview")
     st.write(st.session_state.exam_text)
     
     if st.session_state.pdf_data:
         st.download_button(
             label="📥 Download Official Exam PDF",
             data=st.session_state.pdf_data,
-            file_name="CENTS_Full_Exam.pdf",
+            file_name="CENTS_Exam.pdf",
             mime="application/pdf"
         )
