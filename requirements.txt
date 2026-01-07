@@ -2,3 +2,4 @@ streamlit
 groq
 pypdf
 fpdf2
+matplotlib
