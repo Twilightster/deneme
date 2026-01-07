@@ -4,7 +4,7 @@ from pypdf import PdfReader
 from fpdf import FPDF
 import re
 
-# 1. Professional UI Setup
+# 1. Page Configuration
 st.set_page_config(page_title="CENT-S Engine", layout="wide")
 st.title("🏛️ CENT-S Engine: Official Edition")
 
@@ -32,32 +32,32 @@ if uploaded_file:
             Act as an Italian University Exam Designer. Generate a 55-question practice CENT-S Exam.
             DISTRIBUTION: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
             
-            STRICT RULES for READABILITY:
-            - NO complex LaTeX code like \\frac or \\cup. 
-            - Use simple text symbols: ^ for powers, / for fractions, * for multiplication.
+            STRICT READABILITY RULES:
+            - NO shorthand symbols like ^, *, or pi.
+            - Write math clearly: use "squared" or "to the power of" if needed, or use Unicode symbols like ², ³, or π.
+            - Write chemical formulas with standard notation: H₂O, CO₂, C₆H₁₂O₆.
+            - NO BOLD TEXT in the question body.
             - Format: Question number, Question text, then A), B), C), D) on separate lines.
-            - Every question MUST have 4 options.
             Reference: {context_text[:3000]}
             """
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}]
             )
-            # Clean the text: remove all stray $ symbols and backslashes for PDF readability
-            raw_text = response.choices[0].message.content
-            st.session_state.exam_text = raw_text.replace('$', '').replace('\\', '')
+            st.session_state.exam_text = response.choices[0].message.content
             
             # --- STRUCTURED PDF GENERATION ---
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=20)
             pdf.add_page()
             
-            # Title Header
-            pdf.set_fill_color(245, 245, 245)
-            pdf.rect(10, 10, 190, 15, 'F')
-            pdf.set_font("Helvetica", "B", 14)
+            # Title Header (Not bold, professional)
+            pdf.set_font("Helvetica", size=14)
             pdf.cell(0, 12, "CENT-S OFFICIAL PRACTICE TEST", ln=True, align='C')
             pdf.ln(5)
+
+            # Use Helvetica for clean, non-bold output
+            pdf.set_font("Helvetica", size=10)
 
             lines = st.session_state.exam_text.splitlines()
             for line in lines:
@@ -65,35 +65,32 @@ if uploaded_file:
                     pdf.ln(2)
                     continue
                 
-                # Detect and Format Sections
+                # Format Section Headers (Slightly larger but not bold)
                 if any(sect in line.upper() for sect in ["MATH", "REASONING", "BIOLOGY", "CHEMISTRY", "PHYSICS"]):
-                    pdf.set_font("Helvetica", "B", 12)
-                    pdf.set_text_color(40, 40, 40)
+                    pdf.set_font("Helvetica", size=11)
                     pdf.ln(5)
                     pdf.multi_cell(180, 8, text=line.strip().upper())
-                    pdf.set_font("Helvetica", "", 10)
-                    pdf.set_text_color(0, 0, 0)
+                    pdf.set_font("Helvetica", size=10)
                 # Detect and Indent Options
                 elif re.match(r'^[A-D]\)', line.strip()):
                     pdf.set_x(25) 
                     pdf.multi_cell(165, 7, text=line.strip())
                 else:
-                    # Question text formatting
+                    # Question text formatting (Normal weight)
                     pdf.multi_cell(180, 7, text=line.strip())
 
-            # ADD THE TRIANGLE SCHEMA AT THE END
+            # ADD THE TRIANGLE SCHEMA
             if pdf.get_y() > 220: pdf.add_page()
             y = pdf.get_y() + 10
-            pdf.set_draw_color(100, 100, 100)
+            pdf.set_draw_color(150, 150, 150)
             pdf.line(40, y+30, 100, y+30) # Base AB
             pdf.line(40, y+30, 70, y)      # Side AC
             pdf.line(70, y, 100, y+30)     # Side BC
-            pdf.set_font("Helvetica", "B", 10)
             pdf.text(68, y-3, "C")
             pdf.text(37, y+35, "A")
             pdf.text(98, y+35, "B")
-            pdf.set_font("Helvetica", "I", 9)
-            pdf.text(110, y+15, "Figure 1: Geometric reference for Math section")
+            pdf.set_font("Helvetica", size=9)
+            pdf.text(110, y+15, "Figure 1: Geometric reference")
 
             st.session_state.pdf_data = bytes(pdf.output())
 
@@ -104,7 +101,7 @@ if st.session_state.exam_text:
     
     if st.session_state.pdf_data:
         st.download_button(
-            label="📥 Download Clean Official Exam PDF",
+            label="📥 Download Professional Exam PDF",
             data=st.session_state.pdf_data,
             file_name="CENTS_Official_Exam.pdf",
             mime="application/pdf"
