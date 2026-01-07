@@ -3,7 +3,7 @@ from groq import Groq
 from pypdf import PdfReader
 from fpdf import FPDF
 
-# 1. Page Configuration
+# 1. Professional Page Setup
 st.set_page_config(page_title="CENT-S Engine", layout="centered", initial_sidebar_state="collapsed")
 st.markdown("""
     <style>
@@ -42,11 +42,12 @@ if uploaded_file:
             Act as a CISIA Exam Designer. Generate a full 55-question CENT-S Scientific Exam.
             STRUCTURE: 15 Math, 15 Reasoning, 10 Bio, 10 Chem, 5 Physics.
             
-            STRICT RULES:
-            1. Use LaTeX for math/science (e.g., $log_{{2}}200$).
-            2. NO TABLES. Use bullet points for data sets to prevent PDF crashes.
-            3. Exactly 4 options (a, b, c, d). RANDOMIZE correct answers.
-            4. Include an Answer Key at the very end.
+            STRICT FORMATTING RULES:
+            1. Use simple LaTeX for formulas (e.g., $E=mc^2$). 
+            2. NO TABLES. Use simple lists for data.
+            3. AVOID very long unbroken strings of characters.
+            4. Exactly 4 options (a, b, c, d). RANDOMIZE correct answers.
+            5. Include an Answer Key at the very end.
             Context: {context_text[:3000]}
             """
             response = client.chat.completions.create(
@@ -57,23 +58,24 @@ if uploaded_file:
             
             # --- CRASH-PROOF PDF GENERATION ---
             pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.set_auto_page_break(auto=True, margin=20)
             pdf.add_page()
             
             try:
-                # Use DejaVuSans.ttf if it exists in your GitHub repo
+                # Use the font file in your GitHub repo
                 pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
                 pdf.set_font("DejaVu", size=10)
             except:
                 pdf.set_font("Helvetica", size=10)
             
-            # Split by lines and render each line with forced wrapping
-            lines = st.session_state.exam_text.split('\n')
-            for line in lines:
+            # Use splitlines to handle the text block safely
+            text_lines = st.session_state.exam_text.splitlines()
+            
+            for line in text_lines:
                 if line.strip():
-                    # Width 0 means "use full available width of page"
-                    # This prevents the "Not enough horizontal space" error
-                    pdf.multi_cell(0, 7, txt=line)
+                    # The 'w=0' and 'wrapmode="CHAR"' (if supported) prevent horizontal space errors
+                    # We use a standard multi_cell which is safer for varying content lengths
+                    pdf.multi_cell(0, 7, txt=line, border=0, align='L', fill=False)
                 else:
                     pdf.ln(3)
             
